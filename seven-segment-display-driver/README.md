@@ -42,41 +42,148 @@ typedef struct {
 
 #### Why did I make `port` a pointer?
 
-Look at what I pass into the struct: `GPIOA`. To understand why `port` needs a pointer type, follow `GPIOA` to its definition. In STM32CubeIDE, hold **Ctrl** and **left click** `GPIOA` in your code to open its definition.
+Before looking at STM32, let me explain the C idea behind this decision. Suppose I have an integer and a pointer:
+
+```c
+int x = 10;
+int *p = NULL;
+```
+
+`x` is an integer variable holding the value 10. `p` is a variable whose type is pointer to `int`. The star in its declaration tells C what kind of value it stores. `NULL` initializes it as a null pointer; it does not point to an integer object yet and must not be dereferenced in this state.
+
+Now suppose I write:
+
+```c
+p = x;  // Incorrect: assigning an int value to an int pointer.
+```
+
+**This does not give `p` the address of `x`. It attempts to assign the integer value stored in `x`, which is 10, to a pointer.** C does not automatically interpret a variable's name as a request for its address.
+
+This assignment violates C's type constraints and requires a compiler diagnostic. Some compiler settings may allow compilation to continue after a warning, but that does not make it a correct way to point to `x`.
+
+What I actually need is:
+
+```c
+p = &x;  // Correct: &x supplies the address of x.
+```
+
+The `&` operator takes the address of an object. Since `x` is an `int`, `&x` has type `int *`, which matches `p`. Now `p` points to `x`.
+
+Once that pointer is valid, I can access the integer through it:
+
+```c
+*p = 20;  // Write through p. The value of x is now 20.
+```
+
+Notice the different jobs of the symbols. In `int *p`, the star is part of the pointer declaration. In `*p = 20`, it dereferences the pointer to access the pointed object. In `&x`, the ampersand obtains the object's address.
+
+| Expression | What it represents |
+| --- | --- |
+| `x` | The integer value stored in x |
+| `&x` | A pointer to x |
+| `p` after `p = &x` | The stored pointer to x |
+| `*p` after `p = &x` | The integer object accessed through that pointer |
+
+The important idea is to pass a compatible pointer value when a pointer is required. Taking an object's address is one way to get that value. Copying an existing compatible pointer is another:
+
+```c
+int *q = p;  // Correct after p = &x. Both pointers now point to x.
+```
+
+I do not write `&p` here. That would give me the address of the pointer variable itself, with type `int **`.
+
+#### GPIOA already supplies the address
+
+Now look at what I pass into my struct: `GPIOA`. In STM32CubeIDE, hold **Ctrl** and **left click** `GPIOA` to open its definition.
 
 <p align="center">
-  <img src="../docs/images/gpioa-pointer-definition.png" alt="STM32 device header in CubeIDE showing GPIOA defined as GPIOA_BASE cast to GPIO_TypeDef pointer, alongside the definitions for other GPIO ports." width="900">
+  <img src="../docs/images/gpioa-pointer-definition.png" alt="STM32 device header showing GPIOA defined as GPIOA_BASE cast to GPIO_TypeDef pointer." width="900">
   <br>
-  <sub>The definition behind GPIOA. Notice the GPIO_TypeDef * cast before GPIOA_BASE.</sub>
+  <sub>GPIOA already expands to a pointer. Notice the GPIO_TypeDef * cast.</sub>
 </p>
 
-In this project's [STM32F411 device header](Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f411xe.h), the definition is:
+In this project's [STM32F411 device header](Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f411xe.h), the macro is:
 
 ```c
 #define GPIOA ((GPIO_TypeDef *) GPIOA_BASE)
 ```
 
-`GPIOA_BASE` is the base address of port A's registers in the MCU's memory map. The cast `(GPIO_TypeDef *)` turns that address into a pointer to `GPIO_TypeDef`. So **GPIOA already represents a pointer to the port's registers**.
+**GPIOA is basically an address: more precisely, it expands to a pointer containing the base address of GPIO port A's register block.**
 
-That is the reason I declared the member as:
+`GPIOA_BASE` identifies that address in the MCU's memory map. The cast `(GPIO_TypeDef *)` converts it to the pointer type used by the STM32 device headers. `GPIO_TypeDef` describes the layout of the GPIO registers at that location.
+
+This is why my struct contains:
 
 ```c
 GPIO_TypeDef *port;
 ```
 
-I am passing a pointer value, so I use a matching pointer type to store it. `GPIO_TypeDef` describes the layout of the GPIO registers and the pointer identifies where that register block is located. Writing `GPIO_TypeDef port` without the star would instead put a whole register structure inside my struct, which is not what I want.
-
-For example:
+I am giving `port` an existing pointer value, so I declare it with the matching type. For example:
 
 ```c
 seven_seg_pin segment_a = {GPIOA, GPIO_PIN_1};
 ```
 
-Here `segment_a.port` holds the same register address represented by `GPIOA`. It does not copy the register block and it does not allocate a GPIO port. We also do not write `&GPIOA` because the macro already supplies the pointer we need.
+`segment_a.port` stores the pointer supplied by `GPIOA`. It does not copy the register block or allocate a new port. Without the star, `GPIO_TypeDef port` would instead place a whole register structure inside my struct.
 
-When the driver passes `pinSetUp[i].port` to `HAL_GPIO_WritePin()`, HAL receives the pointer identifying which port to access. If you choose GPIOB for a segment, your struct entry stores GPIOB's register address instead. The driver function can stay the same.
+Compare the two cases:
 
-Following a symbol to its definition is a useful habit when learning embedded C. In this case, it explains why the star belongs in the struct instead of leaving it as something to memorize.
+```c
+int x = 10;
+int *p = &x;                 // x is an integer object. Take its address.
+GPIO_TypeDef *port = GPIOA;  // GPIOA already supplies a pointer. Use it directly.
+```
+
+#### Should I write `&GPIOA`? No.
+
+The reason is visible when you expand the macro:
+
+```c
+&GPIOA
+// Expands to: &((GPIO_TypeDef *) GPIOA_BASE)
+```
+
+That cast expression already produces the pointer we need. It is not an object whose address we can take with `&`, so this expression is invalid. The issue is this macro's particular expansion, not a rule that macros can never be used with `&`.
+
+For my driver, the correct value to supply is simply **`GPIOA`**. If you choose GPIOB for a segment, supply **`GPIOB`** instead and initialize the corresponding GPIO output.
+
+#### Follow the pointer into HAL_GPIO_WritePin
+
+We can check the other end of the call too. In STM32CubeIDE, hold **Ctrl** and **left click** `HAL_GPIO_WritePin` to inspect the function.
+
+<p align="center">
+  <img src="../docs/images/hal-gpio-write-pin-definition.png" alt="HAL_GPIO_WritePin definition showing its GPIO_TypeDef pointer parameter and writes to the selected GPIO port's BSRR register." width="1000">
+  <br>
+  <sub>HAL receives a GPIO_TypeDef pointer and uses it to access the selected port's registers.</sub>
+</p>
+
+The function takes these parameters in the project's [HAL GPIO source](Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c):
+
+```c
+void HAL_GPIO_WritePin(GPIO_TypeDef *GPIOx,
+                       uint16_t GPIO_Pin,
+                       GPIO_PinState PinState);
+```
+
+Look at the first parameter: **`GPIO_TypeDef *GPIOx`**. It expects the same pointer type that `GPIOA` provides and my struct's `port` member stores. C passes that pointer value into the function; it does not copy the entire hardware register block.
+
+Here is a call using the struct entry:
+
+```c
+HAL_GPIO_WritePin(segment_a.port, segment_a.pin, GPIO_PIN_RESET);
+```
+
+With `segment_a` initialized as above, the call selects port A and pin 1. RESET drives that configured output LOW, which turns on a segment in my common anode arrangement.
+
+Inside HAL, the screenshot shows an access such as:
+
+```c
+GPIOx->BSRR = GPIO_Pin;
+```
+
+The arrow operator accesses a struct member through a pointer. Here it selects `BSRR`, the GPIO bit set/reset register, at the port identified by `GPIOx`. The SET branch writes the pin mask to the lower bits. The RESET branch shifts it by 16 bits to use the reset portion of the register. The pointer identifies the port and the mask identifies the pin within it.
+
+That is the whole connection I wanted to understand: **GPIOA supplies the register address, my struct stores the pointer and HAL uses that pointer to access the selected port.** Following the definitions lets you see why the types match instead of memorizing the star.
 
 `pin` stores the HAL pin mask. For example, `GPIO_PIN_1` identifies pin 1 within the selected port. It is a bit mask, not simply the number you read from a display's package pin.
 
