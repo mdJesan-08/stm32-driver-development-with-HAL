@@ -121,7 +121,7 @@ int main(void)
 //	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, 0);
 //	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, 0);
 
-	  seven_segment_set_digit(pins, 0,COMMON_CATHODE);
+	  seven_segment_set_digit(pins, 0,COMMON_ANNODE);
 //	  HAL_Delay(500);
   }
   /* USER CODE END 3 */
