@@ -40,7 +40,43 @@ typedef struct {
 } seven_seg_pin;
 ```
 
-`GPIO_TypeDef` is the type provided by the STM32 device headers to describe a GPIO port's registers. The `*` makes `port` a pointer. A value such as `GPIOA` points to port A's register block; we do not copy the whole block into the struct.
+#### Why did I make `port` a pointer?
+
+Look at what I pass into the struct: `GPIOA`. To understand why `port` needs a pointer type, follow `GPIOA` to its definition. In STM32CubeIDE, hold **Ctrl** and **left click** `GPIOA` in your code to open its definition.
+
+<p align="center">
+  <img src="../docs/images/gpioa-pointer-definition.png" alt="STM32 device header in CubeIDE showing GPIOA defined as GPIOA_BASE cast to GPIO_TypeDef pointer, alongside the definitions for other GPIO ports." width="900">
+  <br>
+  <sub>The definition behind GPIOA. Notice the GPIO_TypeDef * cast before GPIOA_BASE.</sub>
+</p>
+
+In this project's [STM32F411 device header](Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f411xe.h), the definition is:
+
+```c
+#define GPIOA ((GPIO_TypeDef *) GPIOA_BASE)
+```
+
+`GPIOA_BASE` is the base address of port A's registers in the MCU's memory map. The cast `(GPIO_TypeDef *)` turns that address into a pointer to `GPIO_TypeDef`. So **GPIOA already represents a pointer to the port's registers**.
+
+That is the reason I declared the member as:
+
+```c
+GPIO_TypeDef *port;
+```
+
+I am passing a pointer value, so I use a matching pointer type to store it. `GPIO_TypeDef` describes the layout of the GPIO registers and the pointer identifies where that register block is located. Writing `GPIO_TypeDef port` without the star would instead put a whole register structure inside my struct, which is not what I want.
+
+For example:
+
+```c
+seven_seg_pin segment_a = {GPIOA, GPIO_PIN_1};
+```
+
+Here `segment_a.port` holds the same register address represented by `GPIOA`. It does not copy the register block and it does not allocate a GPIO port. We also do not write `&GPIOA` because the macro already supplies the pointer we need.
+
+When the driver passes `pinSetUp[i].port` to `HAL_GPIO_WritePin()`, HAL receives the pointer identifying which port to access. If you choose GPIOB for a segment, your struct entry stores GPIOB's register address instead. The driver function can stay the same.
+
+Following a symbol to its definition is a useful habit when learning embedded C. In this case, it explains why the star belongs in the struct instead of leaving it as something to memorize.
 
 `pin` stores the HAL pin mask. For example, `GPIO_PIN_1` identifies pin 1 within the selected port. It is a bit mask, not simply the number you read from a display's package pin.
 
