@@ -1,0 +1,16 @@
+# CubeIDE workspace state
+.metadata/
+
+# Generated build directories in any project
+Debug/
+Release/
+
+# Local debug launch configurations
+*.launch
+
+# Generated compiler-discovery settings
+**/.settings/language.settings.xml
+
+# Operating-system files
+.DS_Store
+Thumbs.db
