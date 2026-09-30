@@ -15,9 +15,11 @@ STM32F411 Black Pill · 5011BS common-anode display · C · STM32 HAL
 
 </div>
 
-<!-- Insert the author's actual prototype photograph here when supplied.
-     Store the image under docs/images/ and use a relative link.
-     Do not substitute a rendered or stock image for hardware evidence. -->
+<p align="center">
+  <img src="../docs/images/breadboard-prototype.jpg" alt="Black Pill STM32 board wired to a red seven-segment display showing digit 0 on a breadboard, with an ST-LINK probe alongside it." width="480">
+  <br>
+  <sub>Working breadboard prototype: Black Pill STM32F411CEU6 and 5011BS common-anode display showing digit 0.</sub>
+</p>
 
 ---
 
@@ -27,7 +29,7 @@ This project implements a single-digit seven-segment display on a breadboard usi
 
 The driver separates digit patterns from the board's pin assignments: a lookup table describes which segments form each number, while an array of port/pin pairs describes where those segments are connected.
 
-**Hardware status:** the author reports a working breadboard prototype. The checked-in example repeatedly requests digit **0**; a full 0–9 hardware test and measured segment currents have not yet been documented.
+**Hardware status:** the prototype photograph shows the display illuminated as digit **0**, matching the digit requested by the checked-in example. A full 0–9 hardware test and measured segment currents have not yet been documented.
 
 > **Implementation note:** the current polarity enum is inverted. The example selects `COMMON_CATHODE`, but that branch produces the active-low outputs used by this common-anode prototype. See [Current limitations](#current-limitations) before changing the display type.
 
@@ -183,7 +185,7 @@ The custom display driver is contained in `seven_segment.h` and `seven_segment.c
 | Input pointers | The driver assumes a valid seven-entry pin array | Document or add input validation |
 | API spelling | Common anode is spelled `COMMON_ANNODE` | Rename consistently when updating the interface |
 | Display scope | One digit, segments a–g | Decimal point and multiplexing are not implemented |
-| Hardware evidence | Working breadboard prototype reported by the author | Add prototype imagery, a 0–9 demonstration, and current measurements |
+| Hardware evidence | Prototype photograph showing digit 0 | Add a 0–9 demonstration and current measurements |
 
 ## Author and licensing
 
