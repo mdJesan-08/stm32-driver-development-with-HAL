@@ -11,7 +11,7 @@ STM32F411 Black Pill · 5011BS common-anode display · C · STM32 HAL
 ![Interface: GPIO](https://img.shields.io/badge/interface-GPIO-28786A?style=flat-square)
 ![Stage: breadboard prototype](https://img.shields.io/badge/stage-breadboard_prototype-D99A28?style=flat-square)
 
-[Prototype](#the-prototype) · [Wiring](#wiring) · [How it works](#how-it-works) · [Usage](#usage) · [Build](#build-and-flash) · [Current limitations](#current-limitations)
+[Prototype](#the-prototype) · [Start here](#what-i-wish-i-had-understood-before-wiring-it) · [Wiring](#wiring) · [How it works](#how-it-works) · [Usage](#usage) · [Build](#build-and-flash) · [Current limitations](#current-limitations)
 
 </div>
 
@@ -32,6 +32,60 @@ The driver separates digit patterns from the board's pin assignments: a lookup t
 **Hardware status:** the prototype photograph shows the display illuminated as digit **0**, matching the digit requested by the checked-in example. A full 0–9 hardware test and measured segment currents have not yet been documented.
 
 > **Implementation note:** the current polarity enum is inverted. The example selects `COMMON_CATHODE`, but that branch produces the active-low outputs used by this common-anode prototype. See [Current limitations](#current-limitations) before changing the display type.
+
+## What I wish I had understood before wiring it
+
+When I first started this project, I struggled with the documentation. I wanted to get a number on the display, but first I needed to understand what the pins meant and how the display type affected my code. I am keeping those basics here so you can follow the project without having to piece everything together yourself.
+
+### 1. Read the segment letters before connecting wires
+
+<p align="center">
+  <img src="../docs/images/7-segment-display-pin-diagr_0.png" alt="Illustrative ten-pin seven-segment display: segments a through g, decimal point, and two common pins." width="460">
+  <br>
+  <sub>Reference pin diagram supplied for this guide. Check your own display's datasheet before using its physical pin numbers.</sub>
+</p>
+
+There are three different labels to keep track of: the **segment letter**, the **display's physical pin number**, and the **STM32 GPIO name**. They are not interchangeable. In my code, `a` connects to `PA1`; that does not mean segment `a` is physical pin 1 on the display.
+
+Read the picture in the orientation shown. It labels the top bar `a`, the middle bar `g`, and the small dot `DP`. The two `com` labels identify the shared connection. This is a reference drawing, not a verified package-pin map for my particular 5011BS.
+
+### 2. Common anode: the type used in my prototype
+
+<p align="center">
+  <img src="../docs/images/Common-Cathode-7-Segment-Di.png" alt="Common-anode display diagram showing the LED anodes joined to a shared positive connection." width="640">
+  <br>
+  <sub>Common-anode internal connections. The drawing is common anode despite the downloaded filename.</sub>
+</p>
+
+My display is a **5011BS common-anode** part. In the picture, the joined line is the shared positive side of the LEDs. For my 3.3 V setup, pulling a segment's other end LOW through a current-limited path allows that segment to light.
+
+The useful rule is: **common anode → LOW turns a segment on**. A `1` in my lookup table means “this segment belongs to the digit”; it does not automatically mean “write HIGH to the GPIO.” The driver has to translate the pattern into the right electrical level.
+
+### 3. Common cathode: why some examples look reversed
+
+<p align="center">
+  <img src="../docs/images/common-cathode-7-segment.png" alt="Common-cathode display diagram showing the LED cathodes joined to a shared ground connection." width="640">
+  <br>
+  <sub>Common-cathode internal connections. One schematic label reads “h”; this project's seven segments are a–g, with DP separate.</sub>
+</p>
+
+A common-cathode display shares the negative side instead. With that common connection at ground, a HIGH output supplies current to a segment through its resistor. So the rule becomes **common cathode → HIGH turns a segment on**.
+
+These two circuit drawings explain the internal connections; they omit the external current-limiting resistors. They are not complete breadboard wiring instructions.
+
+### 4. Connect the pictures to my breadboard
+
+In the [prototype photo above](../docs/images/breadboard-prototype.jpg), you can see the Black Pill, the jumper wires, the illuminated display, and an ST-LINK probe beside the breadboard. The display is showing **0**: the outside segments are on and the middle segment is off. That is the same pattern stored in the first row of my lookup table.
+
+Use the [wiring table below](#wiring) to follow each segment to its GPIO. Wire colours in the photo are just a visual aid; the segment-to-pin mapping is what matters.
+
+### 5. Check one segment before trying a full digit
+
+With power disconnected, check the display's orientation and common pins against its own datasheet. For a common-anode display, wire the common connection to the supply and one segment through a suitable resistor to a controlled LOW output. Test the segments individually, then connect all seven using the table below.
+
+The 3.3 V supply does not replace current limiting. A resistor on each segment makes brightness more consistent than one resistor shared by the entire display. Also check the [known polarity issue](#current-limitations) in this version before selecting the display-type enum.
+
+**Reference and diagram credit:** [Components101 — 7-Segment Display Pinout, Working and Datasheet](https://components101.com/displays/7-segment-display-pinout-working-datasheet). The three reference diagrams above were supplied for this documentation; they are separate from my own prototype photograph. Use the guide for background and your component's manufacturer datasheet for exact pinout and electrical ratings.
 
 ## Hardware at a glance
 
