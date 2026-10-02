@@ -124,3 +124,123 @@ cc -std=c11 -Wall -Wextra -pedantic-errors pointers-example.c -o pointers-exampl
 Before dereferencing a pointer, make sure it points to a suitable live object. The examples above initialize `p` with `&a` before using `*p`. Declaring `int *p;` alone does not give a local pointer a usable target and a null pointer must not be dereferenced.
 
 The distinction I want to remember is this: **`p` gives the stored pointer, `&p` gives the pointer variable's own address and `*p` accesses the object it points to.**
+
+## Part 2: What happens when I add 1 to a pointer?
+
+Now I want to understand what `p + 1` actually means. It looks like ordinary addition but there is one detail to remember: **a pointer takes steps based on the type it points to.**
+
+<p align="center">
+  <img src="../images/pointer-arithmetic-lesson.png" alt="Lesson screenshot introducing pointer arithmetic with an int pointer and illustrated address changes. See the corrected array example below before trying the code." width="1000">
+  <br>
+  <sub>Lesson screenshot supplied for these notes. Learning reference: <a href="https://www.youtube.com/watch?v=X1DcpcgSUXw">Working with pointers</a>. The original lesson image is not my own work.</sub>
+</p>
+
+### Think of the next element, not the next byte
+
+Suppose I have three integers next to each other in an array:
+
+```c
+int numbers[3] = {10, 20, 30};
+int *p = &numbers[0];
+```
+
+`p` points to the first integer. `p + 1` points to the next integer. `p + 2` points to the integer after that.
+
+If one `int` takes 4 bytes on this system, one step covers 4 bytes. Two steps cover 8 bytes. C handles that step size for me because `p` has type `int *`.
+
+| Expression | Where it points | Distance from the first element when an int is 4 bytes |
+| --- | --- | --- |
+| `p` | `numbers[0]` | 0 bytes |
+| `p + 1` | `numbers[1]` | 4 bytes |
+| `p + 2` | `numbers[2]` | 8 bytes |
+
+The screenshot uses 2002 and 2010 to illustrate a difference of 8 bytes. Those are just teaching numbers. They are not addresses to type into your program. Real addresses also have to meet the system's alignment requirements.
+
+**Adding 1 to an `int *` does not mean adding 1 to the integer stored there. It means moving one int forward.** The size of an `int` is not guaranteed to be 4 bytes on every system. `sizeof(int)` tells us its size on the system we are using.
+
+### Does writing `p + 1` change p?
+
+No. The expression calculates another pointer value but leaves `p` unchanged.
+
+```c
+int *next = p + 1;  // next points to numbers[1].
+                   // p still points to numbers[0].
+```
+
+If I write `p = p + 1;` or `p++;`, I change the pointer stored in `p` itself. After that, it points to the next element.
+
+That is different from this:
+
+```c
+*p = *p + 1;
+```
+
+This line changes the integer that `p` points to. If `p` still points to the first element, that element changes from 10 to 11. The pointer stays where it was.
+
+### What does *(p + 1) give me?
+
+The parentheses calculate the pointer to the next element. The star then reads the integer at that location.
+
+For the original array `{10, 20, 30}`:
+
+```c
+*p        // 10
+*(p + 1)  // 20
+*(p + 2)  // 30
+```
+
+Keep these two expressions separate in your mind:
+
+| Expression | Meaning for the original array |
+| --- | --- |
+| `*p + 1` | Read 10 and add 1. The result is 11. |
+| `*(p + 1)` | Move to the next element and read it. The result is 20. |
+
+Neither expression changes the array by itself. An assignment is needed to store a new value.
+
+### A few corrections before copying the screenshot
+
+The picture helps explain the step size but I would not copy its code as it is.
+
+1. **Print pointers with `%p`.** Pass the pointer cast to `void *`. `%d` is for an `int`, not a pointer.
+2. **Print `sizeof(int)` with `%zu`.** The result of `sizeof` has type `size_t`.
+3. **Keep the label and expression consistent.** The last label says `p+1` but the expression is `p+2`.
+4. **Use an array for this example.** The picture points to a single local integer and then calculates `p + 2`. That calculation goes outside the range C allows for that object, even if it is never dereferenced.
+
+For this rule, C treats a single integer as an array with one element. You can form a pointer one past it but you cannot read or write through that pointer. You cannot keep stepping beyond it just because another variable might happen to be nearby.
+
+With our three element array, `p + 3` is the allowed position just past the end. We must not dereference it. `p + 4` goes beyond the allowed range. For reading our array, stay with `p`, `p + 1` and `p + 2`.
+
+### Try this corrected example
+
+```c
+#include <stdio.h>
+
+int main(void)
+{
+    int numbers[3] = {10, 20, 30};
+    int *p = &numbers[0];
+
+    printf("Size of one int: %zu bytes\n", sizeof(int));
+    printf("p:     %p\n", (void *)p);
+    printf("p + 1: %p\n", (void *)(p + 1));
+    printf("p + 2: %p\n", (void *)(p + 2));
+
+    printf("*p:       %d\n", *p);
+    printf("*(p + 1): %d\n", *(p + 1));
+    printf("*(p + 2): %d\n", *(p + 2));
+
+    return 0;
+}
+```
+
+Save it as `pointer-arithmetic.c`. With a C compiler installed, build and run it:
+
+```bash
+cc -std=c11 -Wall -Wextra -pedantic-errors pointer-arithmetic.c -o pointer-arithmetic
+./pointer-arithmetic
+```
+
+The addresses depend on your program's run. The three printed values should be **10, 20 and 30**. On a system with 4 byte integers, the element addresses will be 4 bytes apart.
+
+What I want to remember is simple: **the pointer type tells C how big one step is. The array tells me how far I am allowed to go.**
