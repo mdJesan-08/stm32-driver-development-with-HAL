@@ -114,13 +114,6 @@ int main(void)
 
 The lines for `p` and `&a` should show the same pointer value. `&p` identifies the separate pointer variable. The final two lines show the integer changing from 5 to 8 through `*p`.
 
-If a C compiler is installed, save the example as `pointers-example.c` and run:
-
-```bash
-cc -std=c11 -Wall -Wextra -pedantic-errors pointers-example.c -o pointers-example
-./pointers-example
-```
-
 Before dereferencing a pointer, make sure it points to a suitable live object. The examples above initialize `p` with `&a` before using `*p`. Declaring `int *p;` alone does not give a local pointer a usable target and a null pointer must not be dereferenced.
 
 The distinction I want to remember is this: **`p` gives the stored pointer, `&p` gives the pointer variable's own address and `*p` accesses the object it points to.**
@@ -232,13 +225,6 @@ int main(void)
 
     return 0;
 }
-```
-
-Save it as `pointer-arithmetic.c`. With a C compiler installed, build and run it:
-
-```bash
-cc -std=c11 -Wall -Wextra -pedantic-errors pointer-arithmetic.c -o pointer-arithmetic
-./pointer-arithmetic
 ```
 
 The addresses depend on your program's run. The three printed values should be **10, 20 and 30**. On a system with 4 byte integers, the element addresses will be 4 bytes apart.
