@@ -534,3 +534,220 @@ After changing the value through `**q`, `x` becomes 9. After changing the pointe
 Every pointer in the chain must lead to a valid live object before we follow it. More stars do not make an invalid pointer usable. In this example, `x`, `p`, `q` and `y` remain alive while the code uses them.
 
 What I want to remember is: **count the steps and check the type at each step. Stop at p to change its destination. Go through p to change the integer it points to.**
+
+## Part 5: Passing values, passing addresses and stack frames
+
+Suppose I have `a = 10` in `main` and I want another function to increase it. I call the function but the value is still 10 when I return. Why?
+
+The first thing to check is what I gave the function: **a copy of the number or a copy of its address?**
+
+### Passing the number gives the function its own copy
+
+<p align="center">
+  <img src="../images/function-pass-value-stack.png" alt="Lesson screenshot showing an integer passed to Increment by value and a drawing of separate function stack frames." width="1000">
+  <br>
+  <sub>Screenshot supplied for these learning notes. The memory drawing is a teaching model rather than a fixed layout required by C.</sub>
+</p>
+
+Here is the first version. I name the parameter `x` so we can easily tell it apart from `a`:
+
+```c
+void IncrementValue(int x)
+{
+    x = x + 1;
+}
+
+/* Inside main: */
+int a = 10;
+IncrementValue(a);
+```
+
+At the call, C reads the value of `a`, which is 10. The function's parameter `x` receives that value. **There are now two separate integer objects: a in main and x in IncrementValue.**
+
+When the function writes `x = x + 1`, it changes its own `x` to 11. It has not written to `a`. After the function returns, `a` is still 10.
+
+| Moment | a in main | x in IncrementValue |
+| --- | --- | --- |
+| Before the call | 10 | No active parameter yet |
+| Function begins | 10 | 10 |
+| After `x = x + 1` | 10 | 11 |
+| Function returns | 10 | Its lifetime has ended |
+
+Using the name `a` for the parameter would not change this behavior. Two local variables with the same name in different functions do not become the same variable.
+
+In the call `IncrementValue(a)`, `a` is the argument expression. In `void IncrementValue(int x)`, `x` is the parameter that receives the value. The screenshot calls these the actual argument and formal argument.
+
+### What is a stack frame?
+
+Think of a stack frame as temporary working space for one active function call. On many systems, a call uses a frame on the call stack to keep information it needs while running.
+
+Depending on the machine and compiler, that information can include local variables, saved register values, arguments and the information needed to return to the caller. Some of it may stay in CPU registers instead of being placed in memory.
+
+A simple way to follow our example is:
+
+1. `main` is running and its variable `a` is alive.
+2. `main` calls `IncrementValue`. The new call has its own parameter `x`.
+3. `main` has not finished. Its execution waits for the call to return while `a` remains alive.
+4. `IncrementValue` finishes. Its parameter `x` stops being a live object and its temporary call storage can be reused.
+5. Execution continues in `main` after the call. Its own `a` is still 10.
+
+This is why a stack is often compared to a pile of plates. For ordinary nested calls, the most recent call finishes before the caller resumes. Calling a function does not replace the caller's variables with the new function's variables.
+
+The second screenshot shows a `printf` call above `main`. That represents a later moment when `Increment` has returned and `main` is printing its result. In this simple model, there is no active `Increment` frame at that moment.
+
+**The separate variables explain the result. The stack drawing helps us picture it.** C does not require every function to have a visible stack frame or every local variable to live on the stack. A compiler can keep values in registers, inline a call or remove work that has no observable effect. The copy behavior of the parameter still applies.
+
+### Passing the address lets the function reach the original
+
+<p align="center">
+  <img src="../images/function-pass-address-stack.png" alt="Lesson screenshot showing Increment receiving int pointer p with the address of a in main and using it to change a from 10 to 11." width="1000">
+  <br>
+  <sub>The pointer parameter belongs to the called function but points to the caller's integer. The illustrated addresses are examples.</sub>
+</p>
+
+Now I change the parameter to a pointer and pass `&a`:
+
+```c
+void IncrementAddress(int *p)
+{
+    *p = *p + 1;
+}
+
+/* Inside main: */
+int a = 10;
+IncrementAddress(&a);
+```
+
+`&a` gives the address of `a`. The function receives a copy of that pointer value in its own parameter `p`.
+
+The screenshot uses 308 as an example address for `a`. Its pointer parameter stores 308. The actual address on your machine will differ but the relationship is the same: **p points to the original a in main**.
+
+Now follow the assignment:
+
+```c
+*p = *p + 1;
+```
+
+On the right side, `*p` reads the integer at that address, which is 10. Adding 1 produces 11. On the left side, `*p` identifies where to store the result. It is still the original `a`.
+
+When the function returns, the local pointer parameter `p` stops being alive. But `a` belongs to the still active call to `main`, so it remains alive with its new value of 11.
+
+| Moment | a in main | p in IncrementAddress |
+| --- | --- | --- |
+| Before the call | 10 | No active parameter yet |
+| Function begins | 10 | Holds a pointer to a |
+| After `*p = *p + 1` | 11 | Still points to a |
+| Function returns | 11 | Its lifetime has ended |
+
+### Is this pass by reference?
+
+The screenshot calls this “call by reference.” You will hear that phrase used to describe changing a caller's variable through its address.
+
+**Strictly speaking, C always passes arguments by value.** In the first version, the copied value is an integer. In the second version, the copied value is a pointer. C does not have a separate reference parameter feature like C++.
+
+The pointer parameter is still a separate variable. It just provides a way to reach another object. That is how we get the effect people often call pass by reference in C.
+
+| Call | Parameter | What gets copied | Effect of the shown assignment |
+| --- | --- | --- | --- |
+| `IncrementValue(a)` | `int x` | Integer value 10 | `x = x + 1` changes only x |
+| `IncrementAddress(&a)` | `int *p` | Pointer to a | `*p = *p + 1` changes a |
+
+### Changing p is different from changing *p
+
+Suppose the caller already has a pointer:
+
+```c
+int a = 10;
+int *caller_p = &a;
+IncrementAddress(caller_p);
+```
+
+`caller_p` and the parameter `p` are separate pointer variables. They hold pointer values that lead to the same integer. Writing through `*p` changes that shared integer.
+
+Assigning a different address to the local parameter `p` would change only that parameter. It would not redirect `caller_p`. To let a function change `caller_p` itself, we would pass `&caller_p` to a matching `int **` parameter. That connects this lesson to Part 4.
+
+Also keep these expressions separate:
+
+| Expression | What changes |
+| --- | --- |
+| `*p = *p + 1` | The integer pointed to by p |
+| `(*p)++` | The integer pointed to by p |
+| `p++` | The local pointer p moves by one element |
+
+### What happens to local storage after a function returns?
+
+Ending a function does not promise that its old bytes are immediately erased. The important point is that its ordinary local objects are no longer alive. Their old storage can be reused.
+
+So do not return a pointer to an ordinary local variable and expect to use it later:
+
+```c
+/* Incorrect example. Do not use the returned pointer. */
+int *BadPointer(void)
+{
+    int temporary = 10;
+    return &temporary;
+}
+```
+
+`temporary` stops being alive when this function returns. The returned pointer does not keep it alive. This differs from our increment example, where `a` belongs to the caller and stays alive throughout the call.
+
+### What about the other memory boxes in the pictures?
+
+The diagrams also show code, static/global storage and a heap. These labels describe a common way to organize program memory:
+
+| Area | Basic idea |
+| --- | --- |
+| Code | The machine instructions the program executes |
+| Static/global storage | Objects such as global variables and static local variables that last for the program's execution |
+| Stack | Commonly used for active calls and their temporary working storage |
+| Heap | Commonly used for dynamic allocation such as memory obtained with malloc |
+
+Neither increment example uses dynamic allocation. Taking `&a` does not move `a` to the heap or make it last longer.
+
+The exact order, addresses and growth directions in those pictures are not rules of C. On an embedded target, the linker configuration and platform decide the memory layout. A stack frame is also not the same thing as the entire stack; it is the working area associated with one call in this model.
+
+### Compare both calls in one program
+
+```c
+#include <stdio.h>
+
+void IncrementValue(int x)
+{
+    x = x + 1;
+    printf("Inside IncrementValue: x = %d\n", x);
+}
+
+void IncrementAddress(int *p)
+{
+    *p = *p + 1;
+    printf("Inside IncrementAddress: *p = %d\n", *p);
+}
+
+int main(void)
+{
+    int a = 10;
+
+    IncrementValue(a);
+    printf("After passing the value: a = %d\n", a);
+
+    IncrementAddress(&a);
+    printf("After passing the address: a = %d\n", a);
+
+    return 0;
+}
+```
+
+The output is:
+
+```text
+Inside IncrementValue: x = 11
+After passing the value: a = 10
+Inside IncrementAddress: *p = 11
+After passing the address: a = 11
+```
+
+The address version requires a valid pointer to a live integer that it is allowed to modify. It does not check for a null pointer. The example meets that requirement by passing `&a`.
+
+A function can also return a new integer for the caller to assign. Pointers are useful when we want to update an existing object through its address, but they are not the only way to send a result back.
+
+My rule to remember is: **a function receives a copied value. If that value is a pointer, it can use the pointer to reach the original object. The pointer parameter's lifetime and the pointed object's lifetime are separate.**
