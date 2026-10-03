@@ -230,3 +230,149 @@ int main(void)
 The addresses depend on your program's run. The three printed values should be **10, 20 and 30**. On a system with 4 byte integers, the element addresses will be 4 bytes apart.
 
 What I want to remember is simple: **the pointer type tells C how big one step is. The array tells me how far I am allowed to go.**
+
+## Part 3: Same integer, different ways to read it
+
+Look at this picture. The integer is 1025 but the first two values read through the character pointer are 1 and 4. Where did those numbers come from?
+
+<p align="center">
+  <img src="../images/pointer-byte-view.png" alt="Lesson screenshot comparing an int pointer with a char pointer for the value 1025. The character pointer reads bytes 1 and 4 on the illustrated system. The integer read past the object is invalid." width="1000">
+  <br>
+  <sub>Screenshot supplied for these learning notes. It includes an invalid read that I explain below. The original lesson image is not my own work.</sub>
+</p>
+
+### Start with what has not changed
+
+```c
+int a = 1025;
+int *p = &a;
+char *p0 = (char *)p;
+```
+
+`a` is still an integer holding 1025. `p` points to that integer. The cast `(char *)p` gives us a character pointer to the first byte of the same object.
+
+**The cast does not change 1025 into 1. It does not create another integer or change the bytes stored in a. It changes the pointer type through which we look at those bytes.**
+
+Both pointers start at the same object. Reading `*p` gives the integer value. Reading `*p0` gives the value of its first byte through a character type.
+
+### One integer can occupy several bytes
+
+The screenshot's system uses 4 bytes for an `int`. Each byte has 8 bits on that system.
+
+1025 can be written as:
+
+```text
+1025 = 1024 + 1
+     = 4 × 256 + 1
+```
+
+In four groups of eight bits, that is:
+
+```text
+00000000  00000000  00000100  00000001
+```
+
+Those groups have values 0, 0, 4 and 1 when written with the most significant group first, as above. But that written order is not necessarily the order of bytes at increasing memory addresses.
+
+### Why does the first byte contain 1?
+
+The byte results shown in the picture match **little endian** storage. That means the least significant byte goes at the lowest address. Here that is the byte containing 1.
+
+For a 4 byte integer with 8 bit bytes on such a system, the layout of 1025 is:
+
+| Position in memory | Byte in binary | Byte value |
+| --- | --- | --- |
+| First byte | `00000001` | 1 |
+| Second byte | `00000100` | 4 |
+| Third byte | `00000000` | 0 |
+| Fourth byte | `00000000` | 0 |
+
+So `*p0` reads 1 and `*(p0 + 1)` reads 4. The integer is not broken. We are looking at one piece of its stored representation at a time.
+
+When we read `*p`, the system reads the object as an integer using its integer representation. For this layout, the value is:
+
+```text
+1 + (4 × 256) + (0 × 65536) + (0 × 16777216) = 1025
+```
+
+On a typical big endian system with the same integer size and byte size, those bytes would appear as 0, 0, 4 and 1 at increasing addresses. C does not require every system to use the same byte order or a 4 byte `int`.
+
+### Why does p + 1 move by 4 but p0 + 1 move by 1?
+
+This is the step size from Part 2 again.
+
+`p` has type `int *`, so `p + 1` moves by one `int`. On the screenshot's system, that covers 4 bytes. `p0` has type `char *`, so `p0 + 1` moves by one character, which is one C byte.
+
+| Expression | Meaning in this example |
+| --- | --- |
+| `p` | Pointer to the integer a |
+| `*p` | Integer value 1025 |
+| `p + 1` | Position just past the single integer a |
+| `p0` | Pointer to the first byte of a |
+| `*p0` | First byte read as a char |
+| `p0 + 1` | Pointer to the second byte of a on this system |
+| `*(p0 + 1)` | Second byte read as a char |
+
+The step size depends on the type being pointed to. It does not depend on the size of the pointer variable itself. `sizeof(int)` measures an integer while `sizeof(p)` measures the pointer variable. Those answer different questions.
+
+`sizeof(char)` is always 1 in C. The number of bits in that byte is given by `CHAR_BIT` from `<limits.h>`. It is 8 on the system illustrated here but C does not require that on every system.
+
+### What is that strange negative value?
+
+The screenshot also reads:
+
+```c
+*(p + 1)  // Invalid here: a is one integer, not an array of two integers.
+```
+
+Forming `p + 1` is allowed because it is the position just past `a`. Reading through it is not allowed. There is no next integer element belonging to this object.
+
+**The value -858993460 is not an answer we should learn or expect. The program has undefined behavior at this read.** That means C does not promise a result. A program might print something, crash or behave differently after a small change.
+
+It is tempting to call this “the value of the next variable” or just “garbage.” Neither explains the real problem. We are reading somewhere this pointer is not allowed to read. The observed number does not make that access valid.
+
+The screenshot also prints pointers with `%d`. That format expects an `int`, so those calls are incorrect too. Use `%p` with a `void *` argument for a pointer and `%zu` for a `sizeof` result. Because the original program contains invalid operations, its output is an illustration of the intended lesson rather than a reliable test.
+
+### Why use unsigned char for the corrected example?
+
+C allows an object's stored bytes to be inspected through a character type. This is a specific rule; casting to any unrelated pointer type does not give us permission to read through it.
+
+I use `unsigned char *` below because it reads each byte as a nonnegative value. Plain `char` can be signed or unsigned depending on the implementation. The values 1 and 4 do not expose that difference but other byte values can.
+
+I also stop after `sizeof(a)` bytes so every byte read belongs to `a`.
+
+### A corrected example
+
+```c
+#include <limits.h>
+#include <stdio.h>
+
+int main(void)
+{
+    int a = 1025;
+    int *p = &a;
+    unsigned char *bytes = (unsigned char *)p;
+
+    printf("Integer value: %d\n", *p);
+    printf("Integer size: %zu bytes\n", sizeof(a));
+    printf("Bits per byte: %d\n", CHAR_BIT);
+    printf("Pointer to a: %p\n", (void *)p);
+
+    for (size_t i = 0; i < sizeof(a); i++)
+    {
+        printf("Byte %zu at %p has value %u\n",
+               i, (void *)(bytes + i), (unsigned int)bytes[i]);
+    }
+
+    printf("Integer after reading its bytes: %d\n", a);
+    return 0;
+}
+```
+
+On a usual little endian system with 4 byte integers and 8 bit bytes, the byte values will be **1, 4, 0 and 0**. The printed addresses will vary. The integer is still 1025 after the loop because we only read its bytes.
+
+`bytes[i]` means the same thing as `*(bytes + i)`. Both select one byte at position `i`. The cast to `unsigned int` in the print call matches the `%u` format.
+
+The main idea I want to keep is this: **the object stays the same. The pointer type decides whether I access it as an integer or inspect one of its bytes. I still have to stay inside the allowed memory range.**
+
+For the C rule behind byte access, see the character pointer discussion in [WG14's pointer issues paper](https://open-std.org/jtc1/sc22/wg14/www/docs/n2222.htm), which quotes C 6.3.2.3 paragraph 7. The byte layout above explains the supplied screenshot; it is not a promise that every machine stores integers that way.
