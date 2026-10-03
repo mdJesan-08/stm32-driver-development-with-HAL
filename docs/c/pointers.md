@@ -751,3 +751,231 @@ The address version requires a valid pointer to a live integer that it is allowe
 A function can also return a new integer for the caller to assign. Pointers are useful when we want to update an existing object through its address, but they are not the only way to send a result back.
 
 My rule to remember is: **a function receives a copied value. If that value is a pointer, it can use the pointer to reach the original object. The pointer parameter's lifetime and the pointed object's lifetime are separate.**
+
+## Part 6: Pointers and arrays
+
+One shortcut I use is “the array name gives me a pointer.” It helps me remember that I can pass `A` to a function expecting a pointer to its first element. I do not need to write `&A` for that call.
+
+But I want to keep the exact rule clear: **an array is not a pointer variable. In most expressions, the array converts to a pointer to its first element.** People often call this array decay.
+
+### First, look at the elements in memory
+
+<p align="center">
+  <img src="../images/array-first-element-pointer.png" alt="Lesson diagram showing five adjacent integer elements and a pointer initialized with the address of A[0]." width="1000">
+  <br>
+  <sub>Supplied lesson screenshot. The addresses assume 4 byte integers for illustration. The original drawing is not my own work.</sub>
+</p>
+
+The picture shows these values:
+
+```c
+int A[5] = {2, 4, 5, 8, 1};
+int *p = &A[0];
+```
+
+`A` is one array containing five integer elements. Those elements are stored next to each other. `p` is a separate pointer variable holding the address of the first element.
+
+The drawing starts the array at the example address 200. If each integer takes 4 bytes, the elements begin at 200, 204, 208, 212 and 216. The whole array takes `5 * sizeof(int)` bytes, which is 20 bytes on that illustrated system.
+
+So reading `*p` gives 2. Reading `*(p + 1)` gives 4. One step through this `int *` moves by one integer, just as we saw in Part 2.
+
+The statement `int A[5];` alone would not initialize a local array with those five values. I have written the values explicitly above to match the drawing.
+
+### Why can I write p = A?
+
+<p align="center">
+  <img src="../images/array-name-and-index.png" alt="Lesson diagram showing p equals A and the equivalence between A plus i and the address of A[i], with A[i] equal to dereferencing A plus i." width="1000">
+  <br>
+  <sub>The second screenshot connects array indexing to pointer arithmetic.</sub>
+</p>
+
+These two initializations give `p` the same pointer value:
+
+```c
+int *p = &A[0];
+```
+
+```c
+int *p = A;
+```
+
+They are alternatives, not two declarations to put in the same scope. In the second one, `A` converts to a pointer to its first element. That pointer has type `int *`, matching `p`.
+
+**Passing A does not copy all five integers. It supplies a pointer to the first one.** The array still exists in its original place.
+
+### A[i] is an element, not its address
+
+Take index 2:
+
+```c
+A[2]      // The third integer element. Reading it gives 5.
+&A[2]     // A pointer to that third element.
+```
+
+`A[2]` identifies an actual integer object inside the array. We can read it, assign to it or take its address. Writing `&(A[2])` means the same thing as `&A[2]`.
+
+The index counts from zero. Index 0 is the first element and index 4 is the fifth element.
+
+| Expression | Meaning for this array |
+| --- | --- |
+| `A` in a pointer expression | Pointer to the first element |
+| `&A[0]` | Pointer to the first element |
+| `A + 2` | Pointer to the third element |
+| `&A[2]` | Pointer to the third element |
+| `A[2]` | The third element, initially 5 |
+| `*(A + 2)` | The same third element |
+
+For a valid element index `i`, **`A[i]` means `*(A + i)`**. The address of that element is `&A[i]`, which is also `A + i`.
+
+For this five element array, use indices 0 through 4 when accessing an element. `A + 5` is the allowed position just past the array but it must not be dereferenced.
+
+### What happens when I pass these to a function?
+
+Let me use two small functions:
+
+```c
+void ChangeValue(int value)
+{
+    value = 99;
+    (void)value;  // This demonstration deliberately discards the local copy.
+}
+
+void ChangeElement(int *element)
+{
+    *element = 99;
+}
+```
+
+Now compare the calls, starting with our original array:
+
+```c
+ChangeValue(A[2]);      // Copies 5 into value. A[2] stays 5.
+ChangeElement(&A[2]);   // Copies its address. A[2] becomes 99.
+ChangeElement(A);       // Copies the first element's address. A[0] becomes 99.
+```
+
+The first function gets a copy of an integer. The second gets a copy of a pointer. Both calls still use C's pass by value rule. The difference is that a copied pointer lets the function reach the original element.
+
+For `ChangeElement(A)`, no `&` is needed because the array expression already converts to the pointer the parameter expects.
+
+### Then what does &A mean?
+
+`&A` is valid C. It takes the address of the whole array. It does not have the same type as a pointer to one integer.
+
+```c
+int *first = A;
+int (*whole)[5] = &A;
+```
+
+Read the second declaration as **whole is a pointer to an array of five integers**. The parentheses matter. `int *whole[5]` would instead declare an array of five pointers.
+
+| Expression | Pointer type | One step forward |
+| --- | --- | --- |
+| `A` after conversion | `int *` | One integer |
+| `&A[0]` | `int *` | One integer |
+| `&A` | `int (*)[5]` | One whole array of five integers |
+
+The array and its first element begin at the same memory location. That does not make their pointer types interchangeable. `first + 1` points to the second integer while `whole + 1` points just past the whole array. Do not dereference that last pointer here.
+
+For a function expecting `int *`, pass `A` or `&A[0]`. Passing `&A` gives it the wrong pointer type. You would use `&A` with an interface that specifically expects a pointer to that whole array type.
+
+### Why is an array not just a pointer variable?
+
+Two differences make this easier to see:
+
+```c
+int A[5] = {2, 4, 5, 8, 1};
+int *p = A;
+
+p++;  // Valid here. p now points to A[1].
+/* A++; */  // Invalid. An array is not a pointer variable we can advance.
+```
+
+Moving `p` changes a stored pointer. It does not move the array or change its name.
+
+Also, where `A` is the actual array object:
+
+```c
+sizeof(A)  // Size of all five integers.
+sizeof(p)  // Size of the pointer variable.
+```
+
+`sizeof(A)` and `&A` are important cases where the array does not convert to a pointer to its first element. That is why “the array name is always a pointer” would lead us to wrong answers.
+
+### Pass the length when the function needs it
+
+A function receiving `int *` does not automatically receive the number of elements available through that pointer. For a function that processes a variable number of elements, pass the count separately.
+
+```c
+void PrintArray(const int values[], size_t count);
+```
+
+In a function parameter declaration, `const int values[]` is adjusted to `const int *values`. It does not mean the entire array is copied into the function. `const` prevents this function from changing the elements through `values`.
+
+Inside that function, `sizeof(values)` would measure a pointer. It would not recover the caller's array size.
+
+Calculate the count where the real array is available:
+
+```c
+size_t count = sizeof(A) / sizeof(A[0]);
+```
+
+For our array, this divides the size of five integers by the size of one integer and gives 5. This formula does not work as an array count if `A` is actually a pointer parameter.
+
+### A complete example
+
+```c
+#include <stdio.h>
+
+void ChangeValue(int value)
+{
+    value = 99;
+    printf("Inside ChangeValue: value = %d\n", value);
+}
+
+void ChangeElement(int *element)
+{
+    *element = 99;
+}
+
+void PrintArray(const int values[], size_t count)
+{
+    for (size_t i = 0; i < count; i++)
+    {
+        printf("%d%s", values[i], i + 1 == count ? "\n" : " ");
+    }
+}
+
+int main(void)
+{
+    int A[5] = {2, 4, 5, 8, 1};
+    int *p = A;
+    int (*whole)[5] = &A;
+    size_t count = sizeof(A) / sizeof(A[0]);
+
+    printf("*p = %d and *(p + 1) = %d\n", *p, *(p + 1));
+    printf("Whole array size: %zu bytes\n", sizeof(*whole));
+
+    ChangeValue(A[2]);
+    printf("After passing the value: A[2] = %d\n", A[2]);
+
+    ChangeElement(&A[2]);
+    printf("After passing its address: A[2] = %d\n", A[2]);
+
+    ChangeElement(A);
+    printf("After passing A: A[0] = %d\n", A[0]);
+    PrintArray(A, count);
+
+    return 0;
+}
+```
+
+The first call leaves `A[2]` at 5. The address call changes it to 99. Passing `A` to `ChangeElement` then changes the first element to 99. The final array is:
+
+```text
+99 4 99 8 1
+```
+
+In my display driver, the same idea applies to the `pins` array. Passing `pins` supplies a pointer to its first `seven_seg_pin` entry. The driver expects seven entries because that is part of its interface, not because the pointer carries a length.
+
+My shortcut is now more precise: **use A to pass the first element's address, A[i] to pass an element's value and &A[i] to pass that element's address. Remember that the array itself is still an array.**
