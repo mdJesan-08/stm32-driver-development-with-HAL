@@ -376,3 +376,161 @@ On a usual little endian system with 4 byte integers and 8 bit bytes, the byte v
 The main idea I want to keep is this: **the object stays the same. The pointer type decides whether I access it as an integer or inspect one of its bytes. I still have to stay inside the allowed memory range.**
 
 For the C rule behind byte access, see the character pointer discussion in [WG14's pointer issues paper](https://open-std.org/jtc1/sc22/wg14/www/docs/n2222.htm), which quotes C 6.3.2.3 paragraph 7. The byte layout above explains the supplied screenshot; it is not a promise that every machine stores integers that way.
+
+## Part 4: A pointer can point to another pointer
+
+In Part 1, I said a pointer is also a variable with its own address. Now that idea becomes useful. If a pointer has an address, another pointer can store that address.
+
+<p align="center">
+  <img src="../images/pointer-to-pointer-lesson.png" alt="Lesson screenshot showing a chain from r to q to p to integer x. The declarations use int pointer, pointer to pointer and pointer to pointer to pointer." width="1000">
+  <br>
+  <sub>Screenshot supplied for these learning notes. The addresses are teaching examples. The original illustration is not my own work.</sub>
+</p>
+
+### Start with x and p
+
+```c
+int x = 5;
+int *p = &x;
+*p = 6;
+```
+
+`x` starts with the value 5. `p` stores the address of `x`. When I write `*p = 6`, I follow that pointer and change `x` to 6.
+
+So at this point, `x` and `*p` both give me 6 when I read them. I have one integer object, not two copies of 6.
+
+### Now point to p
+
+```c
+int **q = &p;
+```
+
+What am I giving `q`? The address of `p`, not the address of `x`.
+
+Since `p` has type `int *`, its address has type `int **`. That is the matching type for `q`. Read the declaration as **q is a pointer to a pointer to int**.
+
+Now follow it slowly:
+
+| Expression | What I reach | Type |
+| --- | --- | --- |
+| `q` | The stored address of p | `int **` |
+| `*q` | The pointer variable p | `int *` |
+| `**q` | The integer x through p | `int` |
+
+Reading `*q` gives the pointer value stored in `p`, which is `&x`. Reading `**q` follows that pointer too and gives the integer value 6.
+
+**One star follows one pointer. A second star follows the next pointer.**
+
+### One more level with r
+
+```c
+int ***r = &q;
+```
+
+`r` stores the address of `q`. Since `q` has type `int **`, its address has type `int ***`.
+
+The chain is **r points to q, q points to p and p points to x**.
+
+| Expression | What I reach | Type |
+| --- | --- | --- |
+| `r` | The stored address of q | `int ***` |
+| `*r` | The pointer variable q | `int **` |
+| `**r` | The pointer variable p through q | `int *` |
+| `***r` | The integer x through p | `int` |
+
+I do not need to memorize the final value. I can follow each pointer in order. Start at `r`, reach `q`, then reach `p` and finally reach `x`.
+
+The stars in `int ***r` declare its type. The stars in the expression `***r` follow the pointers. That is the same declaration versus dereferencing distinction from Part 1.
+
+### Read the addresses in the picture
+
+The drawing gives `x` the example address 225, `p` the address 215, `q` the address 205 and `r` the address 230.
+
+| Variable | Its own illustrated address | What it stores |
+| --- | --- | --- |
+| `x` | 225 | Integer value 6 |
+| `p` | 215 | Address of x, illustrated as 225 |
+| `q` | 205 | Address of p, illustrated as 215 |
+| `r` | 230 | Address of q, illustrated as 205 |
+
+There is a mistake in the drawing: the box for `r` appears to contain 215. For the written declaration `int ***r = &q;`, it should contain the address of `q`, which the drawing labels 205. The address 215 belongs to `p`.
+
+These numbers only help us follow the connections. They do not show real sizes, alignment or an address order that C promises for local variables.
+
+### Walk through the five print statements
+
+The picture prints five expressions. After `*p = 6`, here is what each one means:
+
+| Expression | Steps | Result when read |
+| --- | --- | --- |
+| `*p` | Follow p to x | 6 |
+| `*q` | Follow q to p and read p | Pointer to x |
+| `*(*q)` | Follow q to p, then p to x | 6 |
+| `*(*r)` | Follow r to q, then q to p and read p | Pointer to x |
+| `*(*(*r))` | Follow r to q, then q to p, then p to x | 6 |
+
+`*(*q)` is another way to write `**q`. Likewise, `*(*r)` is `**r` and `*(*(*r))` is `***r`. The parentheses just make the steps easier to see.
+
+The results for `*q` and `**r` are pointers, not integers. In the drawing, they both identify address 225. In real C code, print them with `%p` and a cast to `void *`. The screenshot uses `%d` for those pointers, which is incorrect. Use `%d` for the integer results.
+
+### Changing the value and changing the destination are different
+
+If I write:
+
+```c
+**q = 9;
+```
+
+I reach `x` and change its value to 9. I could reach the same integer through `***r` too.
+
+But this does something else:
+
+```c
+int y = 20;
+*q = &y;
+```
+
+`*q` is the pointer variable `p`. So this assignment changes `p` to point to `y` instead of `x`. It does not change `x` into 20.
+
+The chain now ends at `y`. `q` still points to `p` and `r` still points to `q`. Reading `*p`, `**q` or `***r` now gives 20. The old integer `x` stays at 9.
+
+This is one reason pointers to pointers are useful: they let us access and change a pointer variable itself. For example, a function can receive the address of a caller's pointer when it needs to update where that pointer points.
+
+### A corrected example
+
+```c
+#include <stdio.h>
+
+int main(void)
+{
+    int x = 5;
+    int *p = &x;
+    *p = 6;
+    int **q = &p;
+    int ***r = &q;
+
+    printf("*p    = %d\n", *p);
+    printf("*q    = %p\n", (void *)*q);
+    printf("**q   = %d\n", **q);
+    printf("**r   = %p\n", (void *)**r);
+    printf("***r  = %d\n", ***r);
+
+    **q = 9;
+    printf("After **q = 9, x = %d\n", x);
+
+    int y = 20;
+    *q = &y;
+    printf("After *q = &y, x = %d and *p = %d\n", x, *p);
+    printf("The chain now reaches y: ***r = %d\n", ***r);
+
+    return 0;
+}
+```
+
+The first, third and fifth lines print 6. The second and fourth lines print the same pointer value, which points to `x` at that moment. The addresses will vary between runs.
+
+After changing the value through `**q`, `x` becomes 9. After changing the pointer through `*q`, `p` points to `y` and the chain reads 20.
+
+Every pointer in the chain must lead to a valid live object before we follow it. More stars do not make an invalid pointer usable. In this example, `x`, `p`, `q` and `y` remain alive while the code uses them.
+
+What I want to remember is: **count the steps and check the type at each step. Stop at p to change its destination. Go through p to change the integer it points to.**
