@@ -979,3 +979,163 @@ The first call leaves `A[2]` at 5. The address call changes it to 99. Passing `A
 In my display driver, the same idea applies to the `pins` array. Passing `pins` supplies a pointer to its first `seven_seg_pin` entry. The driver expects seven entries because that is part of its interface, not because the pointer carries a length.
 
 My shortcut is now more precise: **use A to pass the first element's address, A[i] to pass an element's value and &A[i] to pass that element's address. Remember that the array itself is still an array.**
+
+## Part 7: Why sizeof cannot find the array length inside this function
+
+These two examples look almost the same. Both try to add 1, 2, 3, 4 and 5. But the first calculates the length in the wrong place while the second passes the length from `main`.
+
+The important question is: **at this line of code, does A name an actual array or a pointer parameter?**
+
+### The first version measures a pointer
+
+<p align="center">
+  <img src="../images/array-size-inside-function.png" alt="Lesson screenshot showing an incorrect array length calculation inside SumOfElements and a stack drawing where the function receives a pointer to the caller's array." width="1000">
+  <br>
+  <sub>Supplied lesson screenshot. The function receives a pointer to the existing array rather than a copy of all its elements.</sub>
+</p>
+
+In `main`, we have a real array:
+
+```c
+int A[] = {1, 2, 3, 4, 5};
+```
+
+Here the compiler knows that `A` contains five integers. `sizeof(A)` gives the size of that entire array. If each integer takes 4 bytes, that is 20 bytes.
+
+Then we call:
+
+```c
+SumOfElements(A);
+```
+
+For this call, the array expression converts to a pointer to its first element. The function receives a copy of that pointer value. It does not receive an extra copy of the five integers or an automatic length field.
+
+### Why int A[] in the parameter list is a pointer
+
+These two declarations describe the same parameter type:
+
+```c
+int SumOfElements(int A[]);
+int SumOfElements(int *A);
+```
+
+In a function parameter list, C adjusts `int A[]` to `int *A`. The brackets make the intended use easier to read but they do not create a local array.
+
+That is what I want to notice in the stack drawing: **main owns the five element array. SumOfElements has a pointer parameter called A that leads to its first element.** The two uses of the name `A` do not refer to the same local variable.
+
+The function can access the elements through that pointer while the caller's array is alive. The compiler might keep the pointer in a register rather than a stack slot, so the drawing is a simple way to picture the call. The parameter is a pointer either way.
+
+### Look closely at the failed calculation
+
+Inside the first function, the screenshot writes:
+
+```c
+int size = sizeof(A) / sizeof(A[0]);  // Wrong place to calculate the array length.
+```
+
+Since `A` is a pointer parameter here, this is effectively:
+
+```c
+sizeof(int *) / sizeof(int)
+```
+
+It divides the size of a pointer by the size of an integer. That does not tell us how many integers the pointer can reach.
+
+| Example platform sizes | Calculation inside the function | Incorrect count |
+| --- | --- | --- |
+| Pointer is 4 bytes and int is 4 bytes | `4 / 4` | 1 |
+| Pointer is 8 bytes and int is 4 bytes | `8 / 4` | 2 |
+
+In the first case, the loop adds only `A[0]` and returns 1. In the second case, it adds `A[0]` and `A[1]` and returns 3. Neither result is the intended 15.
+
+**A pointer to int does not have to be the same size as an int.** The `int` in `int *` tells us what kind of object the pointer points to. It does not say the pointer itself takes 4 bytes.
+
+`sizeof(A[0])` still measures an integer because indexing through this pointer produces an integer element. For this ordinary `int` expression, `sizeof` determines its size from the type without reading an element at runtime. It does not search memory for the end of the array.
+
+This wrong formula can also produce a count that goes beyond a smaller array. An incorrect count is not just a wrong total; it can lead to an invalid read.
+
+### Why the second version works
+
+<p align="center">
+  <img src="../images/array-size-passed-to-function.png" alt="Lesson screenshot calculating the five element array length in main, passing it to SumOfElements and printing the sum 15." width="1000">
+  <br>
+  <sub>The caller supplies both the starting pointer and the number of elements.</sub>
+</p>
+
+The second version calculates the length in `main`, where `A` is still the actual array:
+
+```c
+size_t size = sizeof(A) / sizeof(A[0]);
+```
+
+For five 4 byte integers, this gives `20 / 4`, which is 5. If the size of an integer differs on another system, the ratio still gives five because both sizes refer to the same element type.
+
+Now we pass two values:
+
+```c
+int total = SumOfElements(A, size);
+```
+
+The pointer tells the function **where to start**. The count tells it **how many elements to use**. Both argument values are copied into their parameters.
+
+| Iteration | Element added | Running sum |
+| --- | --- | --- |
+| 0 | 1 | 1 |
+| 1 | 2 | 3 |
+| 2 | 3 | 6 |
+| 3 | 4 | 10 |
+| 4 | 5 | 15 |
+
+The loop stops when the index reaches 5, so it never reads `A[5]`.
+
+### A complete version
+
+```c
+#include <stdio.h>
+
+int SumOfElements(const int A[], size_t count)
+{
+    int sum = 0;
+
+    for (size_t i = 0; i < count; i++)
+    {
+        sum += A[i];
+    }
+
+    return sum;
+}
+
+int main(void)
+{
+    int A[] = {1, 2, 3, 4, 5};
+    size_t count = sizeof(A) / sizeof(A[0]);
+    int total = SumOfElements(A, count);
+
+    printf("Number of elements = %zu\n", count);
+    printf("Sum of elements = %d\n", total);
+    return 0;
+}
+```
+
+The output is:
+
+```text
+Number of elements = 5
+Sum of elements = 15
+```
+
+I use `size_t` for the count because it is the type returned by `sizeof`. `const int A[]` becomes a pointer to const int in this parameter list. It lets the function read the elements without changing them through `A`.
+
+The caller must supply a correct count. C does not automatically stop this loop at the array boundary if we pass a larger number. The example's sum also fits in an `int`; a function meant for arbitrary inputs would need to handle possible overflow.
+
+### Writing a number in the parameter brackets does not fix it
+
+This declaration still has a pointer parameter:
+
+```c
+int SumOfElements(int A[5]);
+```
+
+The plain `[5]` does not make `sizeof(A)` inside the function measure five integers. It also does not automatically check the caller's length. For this interface, pass the count explicitly.
+
+The rule I want to keep is: **calculate the length where the actual array is available. Pass the pointer and the count to the function. Do not use sizeof on a pointer to guess how many elements it points to.**
