@@ -1139,3 +1139,200 @@ int SumOfElements(int A[5]);
 The plain `[5]` does not make `sizeof(A)` inside the function measure five integers. It also does not automatically check the caller's length. For this interface, pass the count explicitly.
 
 The rule I want to keep is: **calculate the length where the actual array is available. Pass the pointer and the count to the function. Do not use sizeof on a pointer to guess how many elements it points to.**
+
+## Part 8: A two dimensional array is an array of rows
+
+Things become more interesting here. Let me start with this example:
+
+```c
+int arr[2][3] = {
+    {1, 2, 3},
+    {3, 4, 5}
+};
+```
+
+This is an array with two elements at the outer level. Each of those elements is itself an array of three integers. I will call those inner arrays rows.
+
+`arr[0]` is the first row, containing 1, 2 and 3. `arr[1]` is the second row, containing 3, 4 and 5. The rows are stored next to each other with the first row's elements followed by the second row's elements.
+
+### First, fix the print formats
+
+Here is my original question written with the correct formats:
+
+```c
+printf("arr   = %p\n", (void *)arr);
+printf("*arr  = %p\n", (void *)*arr);
+printf("**arr = %d\n", **arr);
+```
+
+The first two expressions supply pointers in these calls, so I use `%p` with a cast to `void *`. The last expression supplies an integer, so `%d` is correct there. Printing the first two with `%d` is a format mismatch and makes the program's behavior undefined.
+
+The first two pointer values identify the same starting location. The last line prints **1**. Let me explain why that happens without saying that all three expressions mean the same thing.
+
+### What does arr give me?
+
+<p align="center">
+  <img src="../images/two-dimensional-array-rows.png" alt="Lesson diagram showing a two by three integer array as two consecutive rows and a pointer to an array of three integers." width="1000">
+  <br>
+  <sub>Supplied mycodeschool lesson screenshot. Its B array has different values from my arr example but the same two row structure.</sub>
+</p>
+
+In most expressions, an array converts to a pointer to its first element. Here the first element is **a whole row of three integers**.
+
+So `arr` converts to a pointer to a row. Its resulting pointer type is `int (*)[3]`. I can store it like this:
+
+```c
+int (*p)[3] = arr;
+```
+
+Read that as **p is a pointer to an array of three integers**. The parentheses matter. `int *p[3]` would instead declare an array of three pointers.
+
+`p` points to row zero. It does not hold a copied row or a separate list of pointers to the rows.
+
+### What does *arr give me?
+
+The expression `*arr` follows the pointer to the first row. At this step, **the result is an array of three integers**, just like `arr[0]`.
+
+When I use that row in the print expression, it also converts to a pointer to its own first element. That element is now one integer, `arr[0][0]`. This second conversion produces an `int *`.
+
+So there are two different steps:
+
+1. `arr` converts to a pointer to the first row.
+2. `*arr` selects that row, which can then convert to a pointer to its first integer.
+
+This is why the addresses start at the same place. The first row starts at the beginning of the outer array and the first integer starts at the beginning of that row. **It is not a coincidence, but the types are different.**
+
+I would not write `arr = *arr` as code or use it as a type rule. The array is not assignable and the two expressions have different roles. We are comparing their starting locations, not saying they are interchangeable.
+
+### What does **arr give me?
+
+The first star selects the first row. That row converts to a pointer to its first integer when used with the next star. The second star accesses that integer.
+
+```c
+**arr      // Same integer element as arr[0][0]. Its value is 1.
+```
+
+There are two stars because we go through the row level and then the integer level. This does not make the original array a pointer to pointer.
+
+| Expression | What it selects | Type before any further array conversion |
+| --- | --- | --- |
+| `arr` | The whole array | `int [2][3]` |
+| `*arr` or `arr[0]` | The first row | `int [3]` |
+| `**arr` or `arr[0][0]` | The first integer | `int` |
+
+In the print calls, the first two array expressions convert to pointers. The final integer expression supplies the value 1.
+
+### Same start does not mean the same step size
+
+Suppose an integer takes 4 bytes. One row contains three integers, so a row takes 12 bytes.
+
+| Expression | Where it points | Step from the beginning |
+| --- | --- | --- |
+| `arr` after conversion | First row | 0 bytes |
+| `arr + 1` | Second row | 12 bytes |
+| `*arr` after conversion | First integer in the first row | 0 bytes |
+| `*arr + 1` | Second integer in the first row | 4 bytes |
+
+The pointer type tells C how large one step is. `arr + 1` steps over a row. `*arr + 1` steps over one integer inside the first row.
+
+The screenshot illustrates this with address 400 for the first row and 412 for the second row. Those are teaching addresses under the 4 byte integer assumption. Real addresses and integer sizes may differ.
+
+### Follow arr[i][j] one step at a time
+
+<p align="center">
+  <img src="../images/two-dimensional-array-indexing.png" alt="Lesson screenshot expanding B[i][j] into a row pointer step followed by an element pointer step and dereference." width="1000">
+  <br>
+  <sub>The same indexing rule applies to my arr array. First choose a row, then choose an element within it.</sub>
+</p>
+
+The second image shows these equivalent ways to access an element:
+
+```c
+arr[i][j]
+*(arr[i] + j)
+*(*(arr + i) + j)
+```
+
+Let me use `arr[1][2]`, whose value in my example is 5:
+
+| Step | What happens |
+| --- | --- |
+| `arr + 1` | Move to the second row |
+| `*(arr + 1)` | Select the second row, the array `{3, 4, 5}` |
+| `*(arr + 1) + 2` | That row converts to an int pointer and we move to its third element |
+| `*(*(arr + 1) + 2)` | Read that element, which is 5 |
+
+The address of this element is `&arr[1][2]`, also written as `*(arr + 1) + 2`. Add the final star when you want to access the integer at that address.
+
+This is the same indexing rule from a one dimensional array applied twice. I do not have to memorize the long expression if I can follow the row step and the element step.
+
+### Keep the screenshot's values separate from my example
+
+The picture uses `B = {{2, 3, 6}, {4, 5, 8}}`. My code uses `arr = {{1, 2, 3}, {3, 4, 5}}`.
+
+So `*(*B + 1)` in the picture gives 3, but `*(*arr + 1)` in my code gives 2. Both expressions select the second integer in the first row. Different input values produce different results.
+
+### Why this is not int **
+
+`int **` points to an `int *` object. It expects an intermediate pointer object when we dereference it.
+
+Our two dimensional array contains rows of integers. It does not contain stored `int *` objects between the outer array and those rows. The matching pointer is therefore:
+
+```c
+int (*p)[3] = arr;  // Correct: pointer to a row of three integers.
+/* int **q = arr; */  // Wrong pointer type for this array.
+```
+
+Adding a cast would not turn the array's integers into a valid table of pointers. We need the type that matches the actual objects.
+
+### What about &arr and sizeof?
+
+`&arr` points to the whole two by three array. Its type is `int (*)[2][3]`. That is another distinct level from a pointer to one row.
+
+Where `arr` is the actual array in this example:
+
+| Expression | What sizeof measures |
+| --- | --- |
+| `sizeof(arr)` | Two rows, each containing three integers |
+| `sizeof(*arr)` | One row containing three integers |
+| `sizeof(**arr)` | One integer |
+
+If `sizeof(int)` is 4, these sizes are 24, 12 and 4 bytes. These `sizeof` expressions do not convert their array operands to pointers.
+
+### A complete example using my values
+
+```c
+#include <stdio.h>
+
+int main(void)
+{
+    int arr[2][3] = {
+        {1, 2, 3},
+        {3, 4, 5}
+    };
+    int (*p)[3] = arr;
+
+    printf("arr       = %p\n", (void *)arr);
+    printf("*arr      = %p\n", (void *)*arr);
+    printf("**arr     = %d\n", **arr);
+    printf("arr + 1   = %p\n", (void *)(arr + 1));
+    printf("*arr + 1  = %p\n", (void *)(*arr + 1));
+
+    printf("Whole array: %zu bytes\n", sizeof(arr));
+    printf("One row:     %zu bytes\n", sizeof(*arr));
+    printf("One integer: %zu bytes\n", sizeof(**arr));
+
+    printf("arr[1][2]              = %d\n", arr[1][2]);
+    printf("*(*(arr + 1) + 2)      = %d\n", *(*(arr + 1) + 2));
+    printf("p[1][2]                = %d\n", p[1][2]);
+    return 0;
+}
+```
+
+`**arr` prints 1. The final three lines all print 5. The address lines let us compare a row step with an integer step without assuming fixed addresses.
+
+For this array, valid element indices are rows 0 through 1 and columns 0 through 2. Even though the rows are next to each other, do not use `arr[0][3]` to mean `arr[1][0]`. Index within the selected row and move to the next row explicitly.
+
+If I later pass this array to a function, a parameter such as `int values[][3]` adjusts to `int (*values)[3]`. The row width is part of that type so C can calculate row steps. The function still needs a row count if it is meant to handle different numbers of rows.
+
+The idea I want to keep is: **`arr` leads to a row, `*arr` selects that row and `**arr` reaches its first integer. The row and its first integer start together but stepping through them uses different sizes.**
