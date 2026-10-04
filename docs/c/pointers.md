@@ -1222,6 +1222,22 @@ There are two stars because we go through the row level and then the integer lev
 
 In the print calls, the first two array expressions convert to pointers. The final integer expression supplies the value 1.
 
+### See the row and the first integer together
+
+<p align="center">
+  <img src="../images/two-dimensional-array-overview.png" alt="mycodeschool diagram grouping six integers into two rows and showing why B, its first row and the first integer begin at the same location." width="1000">
+  <br>
+  <sub>Supplied mycodeschool lesson screenshot. The orange boxes mark rows and the small black box marks the first integer.</sub>
+</p>
+
+The orange box around 2, 3 and 6 is `B[0]`. The next orange box is `B[1]`. The small black box is only `B[0][0]`, the first integer.
+
+Look at their left edges. The whole array, its first row and its first integer all begin at the illustrated address 400. That is why the picture shows the same starting address for `B`, `*B`, `B[0]` and `&B[0][0]` when used as pointer values for printing.
+
+But `B` converts to a pointer to a row, with type `int (*)[3]`. The row expressions `*B` and `B[0]` convert to pointers to their first integer, with type `int *`. `&B[0][0]` already has type `int *`.
+
+The `int *` labels under the long expression refer to pointers to individual integers: `B[i] + j` and `*(B + i) + j`. The final outer star reads the selected integer. The same steps work for my `arr` example even though its stored numbers differ.
+
 ### Same start does not mean the same step size
 
 Suppose an integer takes 4 bytes. One row contains three integers, so a row takes 12 bytes.
