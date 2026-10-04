@@ -1237,6 +1237,36 @@ The pointer type tells C how large one step is. `arr + 1` steps over a row. `*ar
 
 The screenshot illustrates this with address 400 for the first row and 412 for the second row. Those are teaching addresses under the 4 byte integer assumption. Real addresses and integer sizes may differ.
 
+### We can select another row but we cannot reassign the array
+
+**`*(arr + 1)` is valid for this two row array. `arr = arr + 1;` is not allowed. It is an invalid assignment and the compiler must diagnose it.**
+
+Why does the first expression work? In `arr + 1`, the array converts to a pointer to its first row. Adding 1 calculates a pointer to the next row. The star selects that row. None of these steps changes the array or its name.
+
+```c
+*(arr + 1)  // Selects arr[1], the second row.
+```
+
+But `arr` itself is an array object. It is not a pointer variable with a stored pointer value that we can replace. C does not allow assignment to an array as a whole, so this line is invalid:
+
+```c
+/* Invalid example. Do not include this as an executable statement. */
+arr = arr + 1;
+```
+
+The conversion used on the right side does not turn the array on the left side into an assignable pointer variable.
+
+If I want a pointer that I can move, I declare one separately:
+
+```c
+int (*row)[3] = arr;
+row = row + 1;  // Valid here. row now points to arr[1].
+```
+
+This changes `row`, not `arr`. The array still contains the same two rows in the same place. I can also assign to an individual integer element, such as `arr[1][0] = 9;`.
+
+**Calculating a pointer to another row is allowed. Reassigning the array itself is not.**
+
 ### Follow arr[i][j] one step at a time
 
 <p align="center">
