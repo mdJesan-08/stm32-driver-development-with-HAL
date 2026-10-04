@@ -6,12 +6,12 @@ Sometimes when we learn pointers, we focus so much on the address they store tha
 
 I want to start here because it helps separate three expressions that can look confusing at first: `p`, `&p` and `*p`. They do different jobs.
 
-I made this note while studying [Working with pointers on YouTube](https://www.youtube.com/watch?v=X1DcpcgSUXw). The screenshot below comes from that lesson. I am using it as a reference for the explanation and do not claim the original illustration as my own work.
+**Source:** These notes are based on my study of mycodeschool’s pointer lessons, including [Working with pointers](https://www.youtube.com/watch?v=X1DcpcgSUXw). The lesson illustrations belong to mycodeschool. The accompanying explanations and examples are my study notes.
 
 <p align="center">
   <img src="../images/pointer-variable-memory.png" alt="Lesson screenshot illustrating integer a at example address 204 and pointer p at example address 64. The pointer stores 204 and dereferencing it accesses a." width="1000">
   <br>
-  <sub>Source: <a href="https://www.youtube.com/watch?v=X1DcpcgSUXw">Working with pointers</a>. The numbers 64 and 204 illustrate memory addresses.</sub>
+  <sub><strong>Figure 1.</strong> A pointer stores another variable’s address and has an address of its own.</sub>
 </p>
 
 ### Two variables and two addresses
@@ -125,7 +125,7 @@ Now I want to understand what `p + 1` actually means. It looks like ordinary add
 <p align="center">
   <img src="../images/pointer-arithmetic-lesson.png" alt="Lesson screenshot introducing pointer arithmetic with an int pointer and illustrated address changes. See the corrected array example below before trying the code." width="1000">
   <br>
-  <sub>Lesson screenshot supplied for these notes. Learning reference: <a href="https://www.youtube.com/watch?v=X1DcpcgSUXw">Working with pointers</a>. The original lesson image is not my own work.</sub>
+  <sub><strong>Figure 2.</strong> Pointer arithmetic advances by the size of the pointed element.</sub>
 </p>
 
 ### Think of the next element, not the next byte
@@ -238,7 +238,7 @@ Look at this picture. The integer is 1025 but the first two values read through 
 <p align="center">
   <img src="../images/pointer-byte-view.png" alt="Lesson screenshot comparing an int pointer with a char pointer for the value 1025. The character pointer reads bytes 1 and 4 on the illustrated system. The integer read past the object is invalid." width="1000">
   <br>
-  <sub>Screenshot supplied for these learning notes. It includes an invalid read that I explain below. The original lesson image is not my own work.</sub>
+  <sub><strong>Figure 3.</strong> Reading the bytes of 1025 through a character pointer.</sub>
 </p>
 
 ### Start with what has not changed
@@ -375,7 +375,7 @@ On a usual little endian system with 4 byte integers and 8 bit bytes, the byte v
 
 The main idea I want to keep is this: **the object stays the same. The pointer type decides whether I access it as an integer or inspect one of its bytes. I still have to stay inside the allowed memory range.**
 
-For the C rule behind byte access, see the character pointer discussion in [WG14's pointer issues paper](https://open-std.org/jtc1/sc22/wg14/www/docs/n2222.htm), which quotes C 6.3.2.3 paragraph 7. The byte layout above explains the supplied screenshot; it is not a promise that every machine stores integers that way.
+For the C rule behind byte access, see the character pointer discussion in [WG14's pointer issues paper](https://open-std.org/jtc1/sc22/wg14/www/docs/n2222.htm), which quotes C 6.3.2.3 paragraph 7. The byte layout above explains Figure 3; it is not a promise that every machine stores integers that way.
 
 ## Part 4: A pointer can point to another pointer
 
@@ -384,7 +384,7 @@ In Part 1, I said a pointer is also a variable with its own address. Now that id
 <p align="center">
   <img src="../images/pointer-to-pointer-lesson.png" alt="Lesson screenshot showing a chain from r to q to p to integer x. The declarations use int pointer, pointer to pointer and pointer to pointer to pointer." width="1000">
   <br>
-  <sub>Screenshot supplied for these learning notes. The addresses are teaching examples. The original illustration is not my own work.</sub>
+  <sub><strong>Figure 4.</strong> Following a pointer chain from r through q and p to x.</sub>
 </p>
 
 ### Start with x and p
@@ -546,7 +546,7 @@ The first thing to check is what I gave the function: **a copy of the number or 
 <p align="center">
   <img src="../images/function-pass-value-stack.png" alt="Lesson screenshot showing an integer passed to Increment by value and a drawing of separate function stack frames." width="1000">
   <br>
-  <sub>Screenshot supplied for these learning notes. The memory drawing is a teaching model rather than a fixed layout required by C.</sub>
+  <sub><strong>Figure 5.</strong> Passing an integer value creates a separate parameter in the called function.</sub>
 </p>
 
 Here is the first version. I name the parameter `x` so we can easily tell it apart from `a`:
@@ -602,7 +602,7 @@ The second screenshot shows a `printf` call above `main`. That represents a late
 <p align="center">
   <img src="../images/function-pass-address-stack.png" alt="Lesson screenshot showing Increment receiving int pointer p with the address of a in main and using it to change a from 10 to 11." width="1000">
   <br>
-  <sub>The pointer parameter belongs to the called function but points to the caller's integer. The illustrated addresses are examples.</sub>
+  <sub><strong>Figure 6.</strong> Passing an address lets the called function update the caller’s integer.</sub>
 </p>
 
 Now I change the parameter to a pointer and pass `&a`:
@@ -763,7 +763,7 @@ But I want to keep the exact rule clear: **an array is not a pointer variable. I
 <p align="center">
   <img src="../images/array-first-element-pointer.png" alt="Lesson diagram showing five adjacent integer elements and a pointer initialized with the address of A[0]." width="1000">
   <br>
-  <sub>Supplied lesson screenshot. The addresses assume 4 byte integers for illustration. The original drawing is not my own work.</sub>
+  <sub><strong>Figure 7.</strong> A pointer to the first element of a five element integer array.</sub>
 </p>
 
 The picture shows these values:
@@ -786,7 +786,7 @@ The statement `int A[5];` alone would not initialize a local array with those fi
 <p align="center">
   <img src="../images/array-name-and-index.png" alt="Lesson diagram showing p equals A and the equivalence between A plus i and the address of A[i], with A[i] equal to dereferencing A plus i." width="1000">
   <br>
-  <sub>The second screenshot connects array indexing to pointer arithmetic.</sub>
+  <sub><strong>Figure 8.</strong> Array indexing connects each element’s value to its address.</sub>
 </p>
 
 These two initializations give `p` the same pointer value:
@@ -991,7 +991,7 @@ The important question is: **at this line of code, does A name an actual array o
 <p align="center">
   <img src="../images/array-size-inside-function.png" alt="Lesson screenshot showing an incorrect array length calculation inside SumOfElements and a stack drawing where the function receives a pointer to the caller's array." width="1000">
   <br>
-  <sub>Supplied lesson screenshot. The function receives a pointer to the existing array rather than a copy of all its elements.</sub>
+  <sub><strong>Figure 9.</strong> Inside the function, sizeof measures the pointer parameter rather than the caller’s array.</sub>
 </p>
 
 In `main`, we have a real array:
@@ -1059,7 +1059,7 @@ This wrong formula can also produce a count that goes beyond a smaller array. An
 <p align="center">
   <img src="../images/array-size-passed-to-function.png" alt="Lesson screenshot calculating the five element array length in main, passing it to SumOfElements and printing the sum 15." width="1000">
   <br>
-  <sub>The caller supplies both the starting pointer and the number of elements.</sub>
+  <sub><strong>Figure 10.</strong> Passing the element count allows the function to sum all five integers.</sub>
 </p>
 
 The second version calculates the length in `main`, where `A` is still the actual array:
@@ -1174,7 +1174,7 @@ The first two pointer values identify the same starting location. The last line 
 <p align="center">
   <img src="../images/two-dimensional-array-rows.png" alt="Lesson diagram showing a two by three integer array as two consecutive rows and a pointer to an array of three integers." width="1000">
   <br>
-  <sub>Supplied mycodeschool lesson screenshot. Its B array has different values from my arr example but the same two row structure.</sub>
+  <sub><strong>Figure 11.</strong> A two dimensional array contains rows of three integers.</sub>
 </p>
 
 In most expressions, an array converts to a pointer to its first element. Here the first element is **a whole row of three integers**.
@@ -1227,7 +1227,7 @@ In the print calls, the first two array expressions convert to pointers. The fin
 <p align="center">
   <img src="../images/two-dimensional-array-overview.png" alt="mycodeschool diagram grouping six integers into two rows and showing why B, its first row and the first integer begin at the same location." width="1000">
   <br>
-  <sub>Supplied mycodeschool lesson screenshot. The orange boxes mark rows and the small black box marks the first integer.</sub>
+  <sub><strong>Figure 12.</strong> The array, its first row and its first integer share a starting location.</sub>
 </p>
 
 The orange box around 2, 3 and 6 is `B[0]`. The next orange box is `B[1]`. The small black box is only `B[0][0]`, the first integer.
@@ -1288,7 +1288,7 @@ This changes `row`, not `arr`. The array still contains the same two rows in the
 <p align="center">
   <img src="../images/two-dimensional-array-indexing.png" alt="Lesson screenshot expanding B[i][j] into a row pointer step followed by an element pointer step and dereference." width="1000">
   <br>
-  <sub>The same indexing rule applies to my arr array. First choose a row, then choose an element within it.</sub>
+  <sub><strong>Figure 13.</strong> Two dimensional indexing selects a row before selecting an integer within it.</sub>
 </p>
 
 The second image shows these equivalent ways to access an element:
